@@ -21,6 +21,7 @@ import com.bmwcarit.barefoot.markov.KState;
 import com.bmwcarit.barefoot.roadmap.Road;
 import com.bmwcarit.barefoot.roadmap.RoadMap;
 import com.esri.core.geometry.GeometryEngine;
+import com.esri.core.geometry.Point;
 import com.esri.core.geometry.Polyline;
 import com.esri.core.geometry.WktExportFlags;
 
@@ -151,6 +152,90 @@ public class MatcherKState extends KState<MatcherCandidate, MatcherTransition, M
                             GeometryEngine.geometryToWkt(candidate.transition().route().geometry(),
                                     WktExportFlags.wktExportLineString));
                 }
+                json.put(jsoncandidate);
+            }
+        }
+        return json;
+    }
+    
+    
+    /**
+     * Gets {@link JSONArray} of {@link MatcherKState} with map matched positions, represented by
+     * road id and fraction, and the geometry of the routes.
+     *
+     * @return {@link JSONArray} of {@link MatcherKState} with map matched positions, represented by
+     *         road id and fraction, and the geometry of the routes.
+     * @throws JSONException thrown on JSON extraction or parsing error.
+     */
+    public JSONArray toUOAJSON() throws JSONException {
+        JSONArray json = new JSONArray();
+        if (this.sequence() != null) {
+            for (MatcherCandidate candidate : this.sequence()) {
+                JSONObject jsoncandidate = candidate.point().toJSON();
+                if (candidate.transition() != null) {
+                    jsoncandidate.put("route",
+                            GeometryEngine.geometryToWkt(candidate.transition().route().geometry(),
+                                    WktExportFlags.wktExportLineString));
+                    double routeTravelTime=candidate.transition().route().time();
+                    float totalLength=0;
+                    JSONArray intermediateNodes=new JSONArray();
+                    for (Road road:candidate.transition().route().path())
+                    {
+                    	totalLength+=road.length();
+                    }
+                    for (int i=0;i<candidate.transition().route().size();i++)
+                    {
+                    	Road node = candidate.transition().route().get(i);
+                    	long nodeId = node.id();
+                    	long baseId = node.base().id();
+                    	long segmentFrom=node.base().source();
+                    	long segmentTo=node.base().target();
+                    	long osmWayId = node.base().refid();
+                    	String geometry = node.geometry().toString();
+                    	Polyline geom = node.geometry();
+                    	JSONArray nodeLatitudes=new JSONArray();
+                    	JSONArray nodeLongitudes=new JSONArray();
+                    	for(int z=0;z<geom.getPointCount();z++)
+                    	{
+                    		Point p=geom.getPoint(z);
+                    		nodeLatitudes.put(p.getY());
+                    		nodeLongitudes.put(p.getX());
+                    	}
+                    	String nodeJson=node.toJSON().toString();
+                    	float nodeLength = node.length();
+                    	double nodeTravelTime=routeTravelTime*(nodeLength/totalLength);
+                    	double nodeAvgSpeed=0;
+                    	if (nodeTravelTime>0)
+                    		nodeAvgSpeed=nodeLength/nodeTravelTime;
+                    	JSONObject obj=new JSONObject();
+                    	obj.put("segmentId", nodeId);
+                    	obj.put("osmWayId", osmWayId);
+                    	obj.put("barefootNodeId", baseId);
+                    	obj.put("nodeTravelTime", nodeTravelTime);
+                    	obj.put("nodeAvgSpeed", nodeAvgSpeed);
+                    	obj.put("nodeLength", nodeLength);
+                    	obj.put("osmNodeFrom", segmentFrom);
+                    	obj.put("osmNodeTo", segmentTo);
+                    	obj.put("routeRatio", nodeLength/totalLength);
+                    	obj.put("longitudes", nodeLongitudes);
+                    	obj.put("latitudes", nodeLatitudes);
+                    	obj.put("nodeJson", nodeJson);
+                    	intermediateNodes.put(obj);
+                    }
+                    jsoncandidate.put("intermediateNodes", intermediateNodes);
+                    jsoncandidate.put("intermediateTravelTime", routeTravelTime);
+                    jsoncandidate.put("intermediateLength", totalLength);
+                }
+                double nodeLength = candidate.point().edge().length();
+                double nodeAvgSpeed=-1.0;
+                jsoncandidate.put("segmentId",candidate.point().edge().id());
+                jsoncandidate.put("point",candidate.point().geometry().getX()+","+candidate.point().geometry().getY());
+                jsoncandidate.put("barefootNodeId",candidate.point().edge().base().id());
+                jsoncandidate.put("osmWayId",candidate.point().edge().base().refid());
+                jsoncandidate.put("osmNodeFrom",candidate.point().edge().base().source());
+                jsoncandidate.put("osmNodeTo",candidate.point().edge().base().target());
+                jsoncandidate.put("nodeAvgSpeed",nodeAvgSpeed);
+                jsoncandidate.put("nodeLength",nodeLength);
                 json.put(jsoncandidate);
             }
         }

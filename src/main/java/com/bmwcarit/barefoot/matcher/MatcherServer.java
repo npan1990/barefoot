@@ -129,6 +129,22 @@ public class MatcherServer extends AbstractServer {
             }
         }
     }
+    
+    
+    /**
+     * Output formatter for writing map matched positions, represented be road id and fraction, and
+     * the geometry of the routes into a JSON response message.
+     */
+    public static class UOAJSONOutputFormatter extends OutputFormatter {
+        @Override
+        public String format(String request, MatcherKState output) {
+            try {
+                return output.toUOAJSON().toString();
+            } catch (JSONException e) {
+                throw new RuntimeException("creating JSON response");
+            }
+        }
+    }
 
     /**
      * Output formatter for writing the geometries of a map matched paths into GeoJSON response
@@ -180,6 +196,8 @@ public class MatcherServer extends AbstractServer {
                                 return new OutputFormatter().format(request, output);
                             case "slimjson":
                                 return new SlimJSONOutputFormatter().format(request, output);
+                            case "uoajson":
+                                return new UOAJSONOutputFormatter().format(request, output);
                             case "geojson":
                                 return new GeoJSONOutputFormatter().format(request, output);
                             case "debug":
